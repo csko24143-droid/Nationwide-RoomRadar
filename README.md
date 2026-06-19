@@ -92,6 +92,8 @@ docs/                 設計書一式
 - [x] 予約・報告 API の `school` スコープ化（DESIGN §5.4・`roomradar/live.py`）
 - [x] 静的コア化：配信用JSONビルド＋**クライアント計算**（`scripts/build.py`・`web/`）
       — JS の計算結果が Python エンジンと全コマ一致することをテストで担保
-- [ ] データ検証 `scripts/validate.py` ／ CI 自動化 ／ `CONTRIBUTING.md`（フェーズ2残）
+- [x] データ検証 `scripts/validate.py` ／ CI 自動化（`.github/workflows/ci.yml`）／
+      `CONTRIBUTING.md`・学校追加 Issue テンプレ
+- [ ] CDN 配信・キャッシュバージョニング ／ 非技術者向けフォーム導線（フェーズ2残）
 
 残タスクは [`docs/ROADMAP.md`](docs/ROADMAP.md) を参照。

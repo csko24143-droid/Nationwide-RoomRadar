@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate school data (schools/)
+        run: python scripts/validate.py
+
+      - name: Build static core (dist/)
+        run: python scripts/build.py
+
+      # ubuntu-latest には Node が同梱されているため、JS とエンジンの
+      # クロスチェック（tests/test_client_js.py）も実行される。
+      - name: Run tests
+        run: python -m unittest discover -s tests -v

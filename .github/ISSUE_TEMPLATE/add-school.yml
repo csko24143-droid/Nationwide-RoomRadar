@@ -1,0 +1,81 @@
+name: 学校の追加リクエスト
+description: 自分の学校を RoomRadar に追加してほしいときに使ってください（GitHub が苦手でもOK）。
+title: "[学校追加] "
+labels: ["add-school"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご記入ありがとうございます。技術的な作業はメンテナが代行します。
+        わかる範囲で大丈夫です（不明な項目は空欄でも構いません）。
+        データ形式の詳細は [docs/data-import-format.md](../blob/main/docs/data-import-format.md) を参照。
+  - type: input
+    id: name
+    attributes:
+      label: 学校・学部の正式名称
+      placeholder: 例）日本大学 理工学部
+    validations:
+      required: true
+  - type: input
+    id: short
+    attributes:
+      label: 略称（ヘッダ表示用）
+      placeholder: 例）日大理工
+  - type: input
+    id: region
+    attributes:
+      label: 地域（都道府県など）
+      placeholder: 例）東京・千葉
+  - type: textarea
+    id: buildings
+    attributes:
+      label: 校舎の一覧
+      placeholder: |
+        例）
+        タワースコラ
+        駿河台校舎
+        船橋校舎
+    validations:
+      required: true
+  - type: textarea
+    id: periods
+    attributes:
+      label: 時限と時刻
+      placeholder: |
+        例）
+        1限 09:00-10:40
+        2限 10:50-12:30
+        ...
+    validations:
+      required: true
+  - type: input
+    id: days
+    attributes:
+      label: 開講曜日
+      placeholder: 例）月 火 水 木 金 土
+  - type: textarea
+    id: terms
+    attributes:
+      label: 学期（名称と期間）
+      placeholder: |
+        例）
+        前期 4/1-9/20
+        後期 9/21-3/31
+        通年
+  - type: textarea
+    id: source
+    attributes:
+      label: 時間割データの入手元・形式
+      description: Excel / CSV / 公式時間割ページの URL など。再配布の可否がわかれば併記してください。
+      placeholder: 例）学務システムからエクスポートした Excel を添付します
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 確認事項
+      options:
+        - label: 時間割データの入手元の利用規約・再配布可否を確認しました（または確認方法を本文に記載しました）。
+          required: true
+        - label: 個人が特定される情報（実名など）は時間割データに含めていません。
+          required: true
