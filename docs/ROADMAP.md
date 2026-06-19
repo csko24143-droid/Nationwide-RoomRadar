@@ -20,8 +20,8 @@
 - [x] 時限・学期・曜日・校舎・色・学校名を config から注入（ハードコード排除）
 - [x] 時限時刻の単一ソース化（config → サーバ／テンプレ。JS側はフェーズ2で供給）
 - [x] 学期判定の汎用化（年跨ぎ対応の純粋関数 `roomradar/terms.py`）
-- [ ] API を `/api/<slug>/…` 化、入力検証を学校別許可集合に
-- [ ] 予約・報告DBへ `school` 列追加＋複合インデックス、localStorage キー拡張
+- [x] API を `/api/<slug>/…` 化、入力検証を学校別許可集合に（`roomradar/webapp.py`）
+- [x] 予約・報告DBへ `school` 列追加＋複合インデックス、localStorage キー拡張（`roomradar/live.py`）
 - [x] 全国トップページ（学校一覧）＋各校検索（`roomradar/webapp.py`）
 - [x] NUST 移行：DB→CSV エクスポート、config 作成、**旧実装と全36コマで一致を検証**（`scripts/export_nust.py`）
 

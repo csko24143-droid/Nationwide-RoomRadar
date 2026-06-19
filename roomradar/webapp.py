@@ -1,23 +1,29 @@
 """最小の Flask アプリ（テナント化のデモ／Phase 1 のサーバ描画版）.
 
-1 つのコードベースで複数校をホストすることを示す薄い UI。空き判定は
-:mod:`roomradar` のエンジンに委譲し、学校固有値はすべて ``config.yml`` 由来。
+1 つのコードベースで複数校をホストする薄い UI。空き判定（静的コア）は
+:mod:`roomradar` のエンジンに、仮予約・報告（動的レイヤ）は
+:class:`roomradar.live.LiveStore` に委譲する。学校固有値はすべて ``config.yml`` 由来。
 
 ルーティング（DESIGN.md §6・パス方式）:
-    ``/``            全国トップ（学校一覧／レジストリ）
-    ``/s/<slug>``    その学校の空き教室検索
-
-予約・報告などの動的レイヤ（DESIGN §5.4）は本 MVP には未実装。
+    ``/``                          全国トップ（学校一覧／レジストリ）
+    ``/s/<slug>``                  その学校の空き教室検索
+    ``/api/<slug>/reserve``        仮予約（POST）／``/reserve/cancel``／``/reserve/list``
+    ``/api/<slug>/report``         使用中報告（POST）／``/report/cancel``
 """
 
 from __future__ import annotations
 
+import time
+from collections import defaultdict
 from pathlib import Path
 
-from .config import load_registry, visible_schools
+from .config import SchoolConfig, load_registry, visible_schools
+from .live import LiveStore
 from .school import LoadedSchool
 
 DEFAULT_SCHOOLS_DIR = Path("schools")
+REPORT_THRESHOLD = 2  # この件数以上の報告で「使用中の可能性」表示（旧実装踏襲）
+RATE_LIMIT, RATE_WINDOW = 30, 60  # 学校×IP あたり 60 秒で 30 回まで
 
 _PAGE = """<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
@@ -40,17 +46,29 @@ _PAGE = """<!doctype html>
  .card a.school {{ font-size:17px; font-weight:600; text-decoration:none; }}
  form.search {{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin:12px 0 4px; }}
  label {{ display:block; font-size:12px; color:#9aa3c4; margin-bottom:4px; }}
- select, button {{ padding:9px 11px; border-radius:9px; border:1px solid #2c3458;
+ select, button, input {{ padding:9px 11px; border-radius:9px; border:1px solid #2c3458;
         background:#0f1320; color:#e8ecf5; font-size:15px; }}
  button {{ background: var(--accent); color:#0a0d18; border:0; font-weight:700; cursor:pointer; }}
+ button.ghost {{ background:#232a44; color:#e8ecf5; }}
  .count {{ margin:14px 0 4px; color:#9aa3c4; }}
  .count b {{ color: var(--accent); font-size:20px; }}
  .bgroup {{ margin-top:14px; }}
  .bgroup h3 {{ font-size:14px; margin:0 0 8px; display:flex; align-items:center; gap:8px; }}
  .dot {{ width:11px; height:11px; border-radius:50%; display:inline-block; }}
  .rooms {{ display:flex; flex-wrap:wrap; gap:8px; }}
- .room {{ background:#1d2440; border:1px solid #2c3458; border-radius:9px;
-         padding:8px 12px; font-weight:600; }}
+ details.room {{ background:#1d2440; border:1px solid #2c3458; border-radius:9px; min-width:96px; }}
+ details.room[open] {{ min-width:230px; }}
+ details.room.reported {{ opacity:.55; }}
+ details.room > summary {{ padding:8px 12px; font-weight:600; cursor:pointer; list-style:none;
+        display:flex; align-items:center; gap:6px; flex-wrap:wrap; }}
+ details.room > summary::-webkit-details-marker {{ display:none; }}
+ .badge {{ font-size:11px; padding:1px 6px; border-radius:999px; }}
+ .badge.res {{ background:#2b3a6b; color:#bcd0ff; }}
+ .badge.rep {{ background:#5a2b2b; color:#ffc9c9; }}
+ .badge.warn {{ background:#7a3b1a; color:#ffd9b8; }}
+ .actions {{ padding:0 12px 12px; display:flex; flex-direction:column; gap:6px; }}
+ .actions input {{ width:100%; }}
+ .actions .row {{ display:flex; gap:6px; }}
  .muted {{ color:#6b7393; }}
  footer {{ max-width:880px; margin:0 auto; padding:18px 20px; color:#6b7393; font-size:12px; }}
 </style></head>
@@ -59,28 +77,53 @@ _PAGE = """<!doctype html>
  {subtitle}</div></header>
 <main>{body}</main>
 <footer>{footer}</footer>
+{script}
 </body></html>"""
 
 
-def _esc(text: str) -> str:
+def _esc(text) -> str:
     from markupsafe import escape
 
     return str(escape(text))
 
 
-def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR):
+def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Path = "live.db"):
     """Flask アプリを生成する（``flask`` はここで遅延 import）."""
-    from flask import Flask, abort, request
+    from flask import Flask, abort, jsonify, request
 
     schools_dir = Path(schools_dir)
     app = Flask(__name__)
+    store = LiveStore(live_db)
     _cache: dict[str, LoadedSchool] = {}
+    _rate: dict[tuple[str, str], list[float]] = defaultdict(list)
 
     def get_school(slug: str) -> LoadedSchool:
         if slug not in _cache:
             _cache[slug] = LoadedSchool.load(slug, base_dir=schools_dir)
         return _cache[slug]
 
+    def rate_limited(slug: str) -> bool:
+        ip = (request.headers.get("X-Forwarded-For", request.remote_addr or "")).split(",")[0].strip()
+        now = time.time()
+        hits = [t for t in _rate[(slug, ip)] if now - t < RATE_WINDOW]
+        if len(hits) >= RATE_LIMIT:
+            _rate[(slug, ip)] = hits
+            return True
+        hits.append(now)
+        _rate[(slug, ip)] = hits
+        return False
+
+    def validate(cfg: SchoolConfig, day: str, period) -> int | None:
+        """day/period を学校の許可集合で検証。OK なら整数 period を返す."""
+        try:
+            period = int(period)
+        except (TypeError, ValueError):
+            return None
+        if day in cfg.days and period in cfg.period_numbers:
+            return period
+        return None
+
+    # --- 画面 --------------------------------------------------------------
     @app.route("/")
     def home():
         refs = visible_schools(load_registry(schools_dir / "index.json"))
@@ -111,23 +154,28 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR):
 
         def_day, def_period = school.current_day_period()
         sel_day = request.args.get("day") or def_day
-        sel_period_raw = request.args.get("period")
-        sel_period = int(sel_period_raw) if (sel_period_raw or "").isdigit() else def_period
+        sel_period = validate(cfg, sel_day, request.args.get("period") or def_period)
+        if sel_period is None:
+            sel_day, sel_period = def_day, def_period
         sel_building = request.args.get("building") or "all"
         if sel_day not in cfg.days:
             sel_day = cfg.days[0]
-        if sel_period not in cfg.period_numbers:
-            sel_period = cfg.period_numbers[0]
 
         building = None if sel_building == "all" else sel_building
         free = school.free_rooms(sel_day, sel_period, building=building)
 
+        store.cleanup(school.now())
+        reserve_counts = store.reservation_counts(slug, day=sel_day, period=sel_period)
+        report_counts = store.report_counts(slug, day=sel_day, period=sel_period)
+
         body = _search_form(cfg, sel_day, sel_period, sel_building)
         body += f'<div class="count"><b>{len(free)}</b> 室 空き（{_esc(sel_day)} {sel_period}限）</div>'
-        body += _rooms_by_building(cfg, free)
+        body += _rooms_by_building(cfg, free, reserve_counts, report_counts)
         subtitle = f'<span class="chip">{_esc(cfg.short_name)}</span>'
         footer = _esc(cfg.disclaimer) if cfg.disclaimer else ""
-        return _render(f"{cfg.short_name} — RoomRadar", subtitle, body, cfg.accent, footer)
+        script = _ACTION_JS.format(slug=_esc(slug), day=_esc(sel_day), period=sel_period,
+                                   threshold=REPORT_THRESHOLD)
+        return _render(f"{cfg.short_name} — RoomRadar", subtitle, body, cfg.accent, footer, script)
 
     @app.errorhandler(404)
     def not_found(_e):
@@ -137,14 +185,102 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR):
         )
         return _render("見つかりません — RoomRadar", "", body, "#6c8fff"), 404
 
+    # --- API（動的レイヤ・学校スコープ） -----------------------------------
+    def _require_school(slug: str) -> LoadedSchool:
+        try:
+            return get_school(slug)
+        except FileNotFoundError:
+            abort(404)
+
+    @app.route("/api/<slug>/reserve", methods=["POST"])
+    def api_reserve(slug: str):
+        school = _require_school(slug)
+        data = request.get_json(silent=True) or {}
+        room = str(data.get("room", "")).strip()[:30]
+        building = str(data.get("building", "")).strip()[:30]
+        name = str(data.get("name", "")).strip()[:30]
+        purpose = str(data.get("purpose", "")).strip()[:60]
+        period = validate(school.config, data.get("day", ""), data.get("period"))
+        if not room or not name or period is None:
+            return jsonify({"ok": False, "error": "invalid"}), 400
+        if rate_limited(slug):
+            return jsonify({"ok": False, "error": "rate_limited"}), 429
+        day = data.get("day")
+        store.cleanup(school.now())
+        expires = school.period_end(day, period).isoformat()
+        code, count = store.reserve(
+            slug, room=room, building=building, day=day, period=period,
+            name=name, purpose=purpose, expires_at=expires,
+        )
+        return jsonify({"ok": True, "cancel_code": code, "count": count})
+
+    @app.route("/api/<slug>/reserve/cancel", methods=["POST"])
+    def api_reserve_cancel(slug: str):
+        _require_school(slug)
+        data = request.get_json(silent=True) or {}
+        room = str(data.get("room", "")).strip()[:30]
+        code = str(data.get("cancel_code", "")).strip()[:10]
+        period = _as_int(data.get("period"))
+        if not room or not code or period is None:
+            return jsonify({"ok": False}), 400
+        ok = store.cancel_reservation(slug, room=room, day=data.get("day", ""), period=period, cancel_code=code)
+        return jsonify({"ok": ok})
+
+    @app.route("/api/<slug>/reserve/list", methods=["GET"])
+    def api_reserve_list(slug: str):
+        school = _require_school(slug)
+        period = validate(school.config, request.args.get("day", ""), request.args.get("period"))
+        if period is None:
+            return jsonify({"ok": False}), 400
+        store.cleanup(school.now())
+        return jsonify({"ok": True, "reservations": store.list_reservations(
+            slug, day=request.args.get("day", ""), period=period)})
+
+    @app.route("/api/<slug>/report", methods=["POST"])
+    def api_report(slug: str):
+        school = _require_school(slug)
+        data = request.get_json(silent=True) or {}
+        room = str(data.get("room", "")).strip()[:30]
+        period = validate(school.config, data.get("day", ""), data.get("period"))
+        if not room or period is None:
+            return jsonify({"ok": False, "error": "invalid"}), 400
+        if rate_limited(slug):
+            return jsonify({"ok": False, "error": "rate_limited"}), 429
+        day = data.get("day")
+        store.cleanup(school.now())
+        expires = school.period_end(day, period).isoformat()
+        code, count = store.report(slug, room=room, day=day, period=period, expires_at=expires)
+        return jsonify({"ok": True, "cancel_code": code, "count": count})
+
+    @app.route("/api/<slug>/report/cancel", methods=["POST"])
+    def api_report_cancel(slug: str):
+        _require_school(slug)
+        data = request.get_json(silent=True) or {}
+        room = str(data.get("room", "")).strip()[:30]
+        code = str(data.get("cancel_code", "")).strip()[:10]
+        period = _as_int(data.get("period"))
+        if not room or not code or period is None:
+            return jsonify({"ok": False}), 400
+        ok = store.cancel_report(slug, room=room, day=data.get("day", ""), period=period, cancel_code=code)
+        return jsonify({"ok": ok})
+
     return app
 
 
-def _render(title: str, subtitle: str, body: str, accent: str, footer: str = "") -> str:
-    return _PAGE.format(title=_esc(title), subtitle=subtitle, body=body, accent=accent, footer=footer)
+def _as_int(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
-def _search_form(cfg, sel_day: str, sel_period: int, sel_building: str) -> str:
+def _render(title, subtitle, body, accent, footer="", script="") -> str:
+    return _PAGE.format(
+        title=_esc(title), subtitle=subtitle, body=body, accent=accent, footer=footer, script=script
+    )
+
+
+def _search_form(cfg: SchoolConfig, sel_day: str, sel_period: int, sel_building: str) -> str:
     days = "".join(
         f'<option value="{_esc(d)}"{" selected" if d == sel_day else ""}>{_esc(d)}</option>'
         for d in cfg.days
@@ -164,30 +300,114 @@ def _search_form(cfg, sel_day: str, sel_period: int, sel_building: str) -> str:
         f'<div><label>曜日</label><select name="day">{days}</select></div>'
         f'<div><label>時限</label><select name="period">{periods}</select></div>'
         f'<div><label>校舎</label><select name="building">{blds}</select></div>'
-        "<div><button type=\"submit\">検索</button></div>"
+        '<div><button type="submit">検索</button></div>'
         "</form>"
     )
 
 
-def _rooms_by_building(cfg, free) -> str:
+def _room_panel(room_name: str, building: str, reserves: int, reports: int) -> str:
+    """1 教室分の details パネル（件数バッジ＋予約/報告アクション）."""
+    badges = ""
+    if reserves:
+        badges += f'<span class="badge res">予約{reserves}</span>'
+    if reports:
+        badges += f'<span class="badge rep">報告{reports}</span>'
+    cls = "room reported" if reports >= REPORT_THRESHOLD else "room"
+    warn = '<span class="badge warn">使用中の可能性</span>' if reports >= REPORT_THRESHOLD else ""
+    rn = _esc(room_name)
+    return (
+        f'<details class="{cls}" data-room="{rn}" data-building="{_esc(building)}">'
+        f"<summary>{rn}{badges}{warn}</summary>"
+        '<div class="actions">'
+        f'<input class="r-name" placeholder="お名前/グループ（任意・実名非推奨）" maxlength="30">'
+        f'<input class="r-purpose" placeholder="用途（任意）" maxlength="60">'
+        '<div class="row">'
+        '<button class="act-reserve" type="button">仮予約する</button>'
+        '<button class="act-report ghost" type="button">⚠ 実は使用中</button>'
+        "</div>"
+        '<div class="row">'
+        '<button class="act-reserve-cancel ghost" type="button" hidden>予約を取消</button>'
+        '<button class="act-report-cancel ghost" type="button" hidden>報告を取消</button>'
+        "</div>"
+        "</div></details>"
+    )
+
+
+def _rooms_by_building(cfg: SchoolConfig, free, reserve_counts, report_counts) -> str:
     if not free:
         return '<div class="card muted">この時間に空いている教室はありません。</div>'
-    color = {b.name: b.color for b in cfg.buildings}
     out = []
     for b in cfg.buildings:
         rooms = [r for r in free if r.building == b.name]
         if not rooms:
             continue
-        chips = "".join(f'<span class="room">{_esc(r.room)}</span>' for r in rooms)
+        chips = "".join(
+            _room_panel(r.room, r.building, reserve_counts.get(r.room, 0), report_counts.get(r.room, 0))
+            for r in rooms
+        )
         out.append(
             f'<div class="bgroup"><h3><span class="dot" style="background:{b.color}"></span>'
-            f"{_esc(b.name)} <span class=\"muted\">{len(rooms)}</span></h3>"
+            f'{_esc(b.name)} <span class="muted">{len(rooms)}</span></h3>'
             f'<div class="rooms">{chips}</div></div>'
         )
-    # config の buildings に無い校舎（データ側のみ）も拾う
-    known = set(color)
+    known = {b.name for b in cfg.buildings}
     extra = [r for r in free if r.building not in known]
     if extra:
-        chips = "".join(f'<span class="room">{_esc(r.room)}</span>' for r in extra)
+        chips = "".join(
+            _room_panel(r.room, r.building, reserve_counts.get(r.room, 0), report_counts.get(r.room, 0))
+            for r in extra
+        )
         out.append(f'<div class="bgroup"><h3>その他</h3><div class="rooms">{chips}</div></div>')
     return "".join(out)
+
+
+# クライアント側：予約・報告アクション（学校スコープの API を叩く）。
+_ACTION_JS = """<script>
+(function() {{
+  const SLUG = "{slug}", DAY = "{day}", PERIOD = {period}, THRESHOLD = {threshold};
+  const key = (kind, room) => `${{kind}}_${{SLUG}}_${{room}}_${{DAY}}_${{PERIOD}}`;
+  async function post(path, payload) {{
+    const res = await fetch(`/api/${{SLUG}}/${{path}}`, {{
+      method: "POST", headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify(payload),
+    }});
+    return res.json().catch(() => ({{ ok: false }}));
+  }}
+  // 既に自分が予約/報告済みの教室は取消ボタンを出す
+  function syncButtons(panel) {{
+    const room = panel.dataset.room;
+    panel.querySelector(".act-reserve-cancel").hidden = !localStorage.getItem(key("reserve", room));
+    panel.querySelector(".act-report-cancel").hidden = !localStorage.getItem(key("report", room));
+  }}
+  document.querySelectorAll("details.room").forEach(syncButtons);
+
+  document.addEventListener("click", async (e) => {{
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    const panel = btn.closest("details.room");
+    if (!panel) return;
+    const room = panel.dataset.room, building = panel.dataset.building;
+    const base = {{ room, day: DAY, period: PERIOD }};
+
+    if (btn.classList.contains("act-reserve")) {{
+      const name = (panel.querySelector(".r-name").value || "").trim() || "匿名";
+      const purpose = (panel.querySelector(".r-purpose").value || "").trim();
+      const d = await post("reserve", {{ ...base, building, name, purpose }});
+      if (d.ok) {{ localStorage.setItem(key("reserve", room), d.cancel_code); location.reload(); }}
+      else alert(d.error === "rate_limited" ? "操作が多すぎます。少し待ってください。" : "予約できませんでした。");
+    }} else if (btn.classList.contains("act-report")) {{
+      const d = await post("report", base);
+      if (d.ok) {{ localStorage.setItem(key("report", room), d.cancel_code); location.reload(); }}
+      else alert(d.error === "rate_limited" ? "操作が多すぎます。少し待ってください。" : "報告できませんでした。");
+    }} else if (btn.classList.contains("act-reserve-cancel")) {{
+      const code = localStorage.getItem(key("reserve", room));
+      const d = await post("reserve/cancel", {{ ...base, cancel_code: code }});
+      if (d.ok) {{ localStorage.removeItem(key("reserve", room)); location.reload(); }}
+    }} else if (btn.classList.contains("act-report-cancel")) {{
+      const code = localStorage.getItem(key("report", room));
+      const d = await post("report/cancel", {{ ...base, cancel_code: code }});
+      if (d.ok) {{ localStorage.removeItem(key("report", room)); location.reload(); }}
+    }}
+  }});
+}})();
+</script>"""

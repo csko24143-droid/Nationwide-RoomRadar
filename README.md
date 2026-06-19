@@ -80,7 +80,7 @@ docs/                 設計書一式
 - [x] 学期判定の汎用化（年跨ぎ対応の純粋関数）
 - [x] NUST 移行：DB→CSV、**旧実装と全 36 コマで一致を検証**
 - [x] 全国トップ＋各校検索の最小 Web アプリ
-- [ ] 予約・報告 API の `school` スコープ化（DESIGN §5.4）
+- [x] 予約・報告 API の `school` スコープ化（DESIGN §5.4・`roomradar/live.py`）
 - [ ] フロント統合・クライアント計算化（フェーズ2）
 
 残タスクは [`docs/ROADMAP.md`](docs/ROADMAP.md) を参照。
