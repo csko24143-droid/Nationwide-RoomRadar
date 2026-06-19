@@ -25,7 +25,7 @@ RoomRadar はここに**無い**教室を「空き」と判定する。
 | `department` | △ | `物理学科` | 学科・コース（表示/集計用。空でも可） |
 | `term` | ◯ | `前期` | `config.yml` の `terms[].id` のいずれか |
 | `day` | ◯ | `月` | `config.yml` の `days` のいずれか |
-| `period` | ◯ | `2` | `config.yml` の `periods[].no` のいずれか（整数） |
+| `period` | ◯ | `2` | `config.yml` の `periods[].period` のいずれか（整数） |
 | `room` | ◯ | `123` | 教室名（表示文字列。表記を統一すること） |
 | `building` | ◯ | `タワースコラ` | `config.yml` の `buildings[].name` と**完全一致** |
 | `course` | △ | `力学I` | 科目名（表示用。空でも可） |
@@ -59,7 +59,7 @@ department,term,day,period,room,building,course
 1. ヘッダ列が規定どおり揃っている。
 2. `term` / `day` / `period` が `config.yml` の定義集合に含まれる。
 3. `building` が `config.yml` の `buildings[].name` のいずれかに一致（表記ゆれ検出）。
-4. `period` が整数で `periods[].no` に存在。
+4. `period` が整数で `periods[].period` に存在。
 5. 同一 `(term, day, period, room)` の重複行を検出（警告）。
 6. `room` の表記ゆれ（全角/半角・前後空白）を正規化または警告。
 

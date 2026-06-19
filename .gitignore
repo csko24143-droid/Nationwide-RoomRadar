@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# 動的レイヤの実行時DB（DESIGN §5.4・揮発データ）
+reservations.db
+reports.db
+
+# OS / editor
+.DS_Store
