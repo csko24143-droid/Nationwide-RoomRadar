@@ -1,0 +1,5 @@
+# コアエンジン（roomradar パッケージ）の必須依存
+PyYAML>=6.0
+
+# Web アプリ（roomradar/webapp.py, run.py）に必要。コア／テストには不要。
+Flask>=3.0

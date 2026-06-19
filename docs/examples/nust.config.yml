@@ -1,0 +1,48 @@
+# 学校設定の記入例（日大理工 = 最初のテナント）
+# このファイルは schools/nust/config.yml の雛形。
+# 設計書: ../DESIGN.md §5.2 を参照。
+
+slug: nust                       # 一意ID（英小文字・ハイフン）。URL /s/nust やフォルダ名に使う
+name: 日本大学 理工学部           # 正式名称（トップページ表示）
+short_name: 日大理工              # 略称（ヘッダ・チップ表示）
+region: 東京・千葉                # 全国一覧・地域絞り込み用
+timezone: Asia/Tokyo
+
+theme:
+  accent: "#6c8fff"              # 学校テーマ色
+
+# 開講曜日（この集合だけを検索UI・入力検証で許可）
+days: [月, 火, 水, 木, 金, 土]
+
+# 時限の「単一ソース」。サーバ／クライアント双方がここを参照する。
+#   ※ 現行 nust-room-search では Python 側と JS 側で時刻が不一致（DESIGN §2.4）。
+#      下記は Python 側の値。正しい時刻を学校に確認して確定すること。
+periods:
+  # キーは period（no は YAML でブール値 false と解釈されるため使わない）
+  - { period: 1, start: "09:00", end: "10:40" }
+  - { period: 2, start: "10:50", end: "12:30" }
+  - { period: 3, start: "13:20", end: "15:00" }
+  - { period: 4, start: "15:10", end: "16:50" }
+  - { period: 5, start: "17:00", end: "18:40" }
+  - { period: 6, start: "18:50", end: "20:30" }
+
+# 学期。always:true は常時有効（通年）。start/end は MM-DD（年跨ぎ可）。
+terms:
+  - { id: 前期, start: "04-01", end: "09-20" }
+  - { id: 後期, start: "09-21", end: "03-31" }
+  - { id: 通年, always: true }
+
+# 校舎。id は内部キー、name は時間割CSVの building と一致必須、color は表示色。
+buildings:
+  - { id: tower,     name: タワースコラ, color: "#6c8fff" }
+  - { id: surugadai, name: 駿河台校舎,   color: "#4dd9a0" }
+  - { id: funabashi, name: 船橋校舎,     color: "#ff8c5a" }
+
+# 任意。空なら計測なし。学校別 or 全体集約のどちらでも可。
+analytics:
+  ga4: ""
+
+# 非公式サービスである旨の免責（全校共通の既定文があれば省略可）
+disclaimer: >
+  時間割に登録されていないゲリラ授業・急遽の変更がある場合があります。
+  入室前にドア越しの確認を推奨します。本サービスは大学公式の予約ではありません。

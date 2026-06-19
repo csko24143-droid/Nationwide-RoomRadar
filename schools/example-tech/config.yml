@@ -1,0 +1,37 @@
+# サンプル工科大学（マルチテナント動作確認用のダミー校・実在しません）
+# NUST とは校舎数・時限数・曜日が異なる構成にして「コード変更なしで別校が載る」ことを示す。
+
+slug: example-tech
+name: サンプル工科大学
+short_name: サンプル工科
+region: サンプル県
+timezone: Asia/Tokyo
+
+theme:
+  accent: "#4dd9a0"
+
+# 土曜なし・5曜日（NUST は土まで）
+days: [月, 火, 水, 木, 金]
+
+# 4 時限・90 分（NUST は 6 時限・100 分）
+periods:
+  - { period: 1, start: "09:00", end: "10:30" }
+  - { period: 2, start: "10:40", end: "12:10" }
+  - { period: 3, start: "13:00", end: "14:30" }
+  - { period: 4, start: "14:40", end: "16:10" }
+
+# 通年なし（NUST は通年あり）
+terms:
+  - { id: 前期, start: "04-01", end: "09-20" }
+  - { id: 後期, start: "09-21", end: "03-31" }
+
+# 2 校舎（NUST は 3 校舎）
+buildings:
+  - { id: main, name: 本館,   color: "#4dd9a0" }
+  - { id: lab,  name: 実習棟, color: "#ff8c5a" }
+
+analytics:
+  ga4: ""
+
+disclaimer: >
+  これはマルチテナント動作確認用のサンプル校です。実在しません。
