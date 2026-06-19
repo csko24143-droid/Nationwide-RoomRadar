@@ -18,6 +18,9 @@ from .terms import active_terms
 
 DEFAULT_SCHOOLS_DIR = Path("schools")
 
+# 曜日名 → Python の weekday()（0=月 … 6=日）
+_JP_WEEKDAY = {"月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6}
+
 
 def _tzinfo(timezone: str) -> datetime.tzinfo:
     """設定のタイムゾーン名から tzinfo を得る.
@@ -88,6 +91,26 @@ class LoadedSchool:
                 period = p.number
                 break
         return day, period
+
+    def period_end(
+        self, day: str, period: int, now: datetime.datetime | None = None
+    ) -> datetime.datetime:
+        """指定 曜日×時限 の「今週の終了日時」（予約・報告の失効時刻に使う）.
+
+        旧 ``period_end_dt`` を学校設定（時限終了時刻＋タイムゾーン）に一般化したもの。
+        """
+        if now is None:
+            now = self.now()
+        p = self.config.period(period)
+        if p is None:
+            raise ValueError(f"未知の時限です: {period}")
+        target_wd = _JP_WEEKDAY.get(day, 0)
+        delta = (target_wd - now.weekday()) % 7
+        target = (now + datetime.timedelta(days=delta)).date()
+        hour, minute = (int(x) for x in p.end.split(":"))
+        return datetime.datetime(
+            target.year, target.month, target.day, hour, minute, tzinfo=now.tzinfo
+        )
 
     # --- 空き判定 ----------------------------------------------------------
     def free_rooms(

@@ -20,18 +20,20 @@
 - [x] 時限・学期・曜日・校舎・色・学校名を config から注入（ハードコード排除）
 - [x] 時限時刻の単一ソース化（config → サーバ／テンプレ。JS側はフェーズ2で供給）
 - [x] 学期判定の汎用化（年跨ぎ対応の純粋関数 `roomradar/terms.py`）
-- [ ] API を `/api/<slug>/…` 化、入力検証を学校別許可集合に
-- [ ] 予約・報告DBへ `school` 列追加＋複合インデックス、localStorage キー拡張
+- [x] API を `/api/<slug>/…` 化、入力検証を学校別許可集合に（`roomradar/webapp.py`）
+- [x] 予約・報告DBへ `school` 列追加＋複合インデックス、localStorage キー拡張（`roomradar/live.py`）
 - [x] 全国トップページ（学校一覧）＋各校検索（`roomradar/webapp.py`）
 - [x] NUST 移行：DB→CSV エクスポート、config 作成、**旧実装と全36コマで一致を検証**（`scripts/export_nust.py`）
 
 ## フェーズ2 — 静的コア化＋貢献導線
-- [ ] 空き計算のクライアント化（学校別 `schedule.<slug>.json` を配信）
-- [ ] CDN/静的ホスティング配信＋キャッシュ・バージョニング
-- [ ] `scripts/validate.py`（フォーマット検証）／`scripts/build.py`（JSON・index 生成）
+- [x] 空き計算のクライアント化（学校別 `dist/schools/<slug>.json` を配信・`web/availability.js`）
+- [x] `scripts/build.py`（配信用 JSON・index 生成）
+- [x] フロント：静的クライアント（方針A・`web/`）を追加。サーバ描画（方針B）と併存
+- [x] JS 計算とサーバ計算の一致をテストで担保（`tests/test_client_js.py`・Node クロスチェック）
+- [ ] `scripts/validate.py`（フォーマット検証・取り込み時の自動チェック）
+- [ ] CDN/静的ホスティング配信＋キャッシュ・バージョニング（ファイル名ハッシュ）
 - [ ] CI で検証自動化（PR時にデータをチェック）
 - [ ] `CONTRIBUTING.md` ／ Issue テンプレ「学校追加」／フォーム導線
-- [ ] フロント2系統（app.py テンプレ / index.html）の統合
 
 ## フェーズ3 — スケール運用（数十〜数百校）
 - [ ] DBファイル分割 or Postgres 移行（`school` で水平分割可能に）
