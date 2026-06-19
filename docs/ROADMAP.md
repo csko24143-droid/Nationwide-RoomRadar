@@ -30,10 +30,11 @@
 - [x] `scripts/build.py`（配信用 JSON・index 生成）
 - [x] フロント：静的クライアント（方針A・`web/`）を追加。サーバ描画（方針B）と併存
 - [x] JS 計算とサーバ計算の一致をテストで担保（`tests/test_client_js.py`・Node クロスチェック）
-- [ ] `scripts/validate.py`（フォーマット検証・取り込み時の自動チェック）
+- [x] `scripts/validate.py`（フォーマット検証・取り込み時の自動チェック）
+- [x] CI で検証自動化（`.github/workflows/ci.yml`：validate→build→test、PR時に自動実行）
+- [x] `CONTRIBUTING.md` ／ Issue テンプレ「学校追加」（`.github/ISSUE_TEMPLATE/add-school.yml`）
 - [ ] CDN/静的ホスティング配信＋キャッシュ・バージョニング（ファイル名ハッシュ）
-- [ ] CI で検証自動化（PR時にデータをチェック）
-- [ ] `CONTRIBUTING.md` ／ Issue テンプレ「学校追加」／フォーム導線
+- [ ] 非技術者向けフォーム導線（Google フォーム等）
 
 ## フェーズ3 — スケール運用（数十〜数百校）
 - [ ] DBファイル分割 or Postgres 移行（`school` で水平分割可能に）
