@@ -28,11 +28,15 @@ pip install -r requirements.txt
 # テスト（コアエンジン。pytest 不要・標準ライブラリの unittest）
 python -m unittest discover -s tests -v
 
-# Web アプリ（全国トップ / 各校検索）を起動
+# 配信用JSONをビルド（静的コア／クライアント計算版で使用）
+python scripts/build.py            # schools/ → dist/
+
+# Web アプリを起動
 python run.py            # → http://localhost:10000
-#   /                    全国トップ（学校一覧）
-#   /s/nust              日大理工の空き教室検索
-#   /s/example-tech      サンプル校（構成の異なる2校目）
+#   /                              全国トップ（サーバ描画版）
+#   /s/nust                        日大理工の空き教室検索（サーバ描画）
+#   /app/                          全国トップ（静的・クライアント計算版）
+#   /app/school.html?school=nust   各校検索（ブラウザ側で空き計算・予約/報告のみAPI）
 ```
 
 ## プロジェクト構成
@@ -44,14 +48,19 @@ roomradar/            学校非依存のコア（このコードは学校を知�
   availability.py     空き判定エンジン（使用中集合の差集合・純粋関数）
   data.py             schedule.csv / classrooms.csv のローダ
   school.py           設定＋データを束ねた 1 校分のモデル
-  webapp.py           最小 Flask アプリ（/ と /s/<slug>）
+  live.py             動的レイヤ：予約・報告（school スコープ・SQLite）
+  webapp.py           Flask アプリ（/ ・/s/<slug>・/api/<slug>/… ・静的配信）
+web/                  静的コアのクライアント（ブラウザで空き計算）
+  availability.js     availability.py / terms.py の JS 版（Python と同一ロジック）
+  index.html / school.html / app.js / styles.css
 schools/              テナント（学校）データ。ここを足すだけで学校が増える
   index.json          全国レジストリ
   nust/               日大理工（実データ。config + schedule.csv + classrooms.csv）
   example-tech/       マルチテナント実証用サンプル校
 scripts/
   export_nust.py      旧DB→CSV 移行＋旧実装との一致検証（DESIGN §13）
-tests/                unittest（terms / availability / config / multi-tenant）
+  build.py            配信用 JSON（dist/）のビルド（DESIGN §4.1 静的コア）
+tests/                unittest（terms/availability/config/live/build/JSクロスチェック）
 docs/                 設計書一式
 ```
 
@@ -81,6 +90,8 @@ docs/                 設計書一式
 - [x] NUST 移行：DB→CSV、**旧実装と全 36 コマで一致を検証**
 - [x] 全国トップ＋各校検索の最小 Web アプリ
 - [x] 予約・報告 API の `school` スコープ化（DESIGN §5.4・`roomradar/live.py`）
-- [ ] フロント統合・クライアント計算化（フェーズ2）
+- [x] 静的コア化：配信用JSONビルド＋**クライアント計算**（`scripts/build.py`・`web/`）
+      — JS の計算結果が Python エンジンと全コマ一致することをテストで担保
+- [ ] データ検証 `scripts/validate.py` ／ CI 自動化 ／ `CONTRIBUTING.md`（フェーズ2残）
 
 残タスクは [`docs/ROADMAP.md`](docs/ROADMAP.md) を参照。

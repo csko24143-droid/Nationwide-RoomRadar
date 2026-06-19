@@ -10,5 +10,8 @@ venv/
 reservations.db
 reports.db
 
+# 静的コアのビルド成果物（scripts/build.py で生成・再現可能）
+dist/
+
 # OS / editor
 .DS_Store

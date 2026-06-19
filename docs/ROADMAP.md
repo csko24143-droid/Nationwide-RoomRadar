@@ -26,12 +26,14 @@
 - [x] NUST 移行：DB→CSV エクスポート、config 作成、**旧実装と全36コマで一致を検証**（`scripts/export_nust.py`）
 
 ## フェーズ2 — 静的コア化＋貢献導線
-- [ ] 空き計算のクライアント化（学校別 `schedule.<slug>.json` を配信）
-- [ ] CDN/静的ホスティング配信＋キャッシュ・バージョニング
-- [ ] `scripts/validate.py`（フォーマット検証）／`scripts/build.py`（JSON・index 生成）
+- [x] 空き計算のクライアント化（学校別 `dist/schools/<slug>.json` を配信・`web/availability.js`）
+- [x] `scripts/build.py`（配信用 JSON・index 生成）
+- [x] フロント：静的クライアント（方針A・`web/`）を追加。サーバ描画（方針B）と併存
+- [x] JS 計算とサーバ計算の一致をテストで担保（`tests/test_client_js.py`・Node クロスチェック）
+- [ ] `scripts/validate.py`（フォーマット検証・取り込み時の自動チェック）
+- [ ] CDN/静的ホスティング配信＋キャッシュ・バージョニング（ファイル名ハッシュ）
 - [ ] CI で検証自動化（PR時にデータをチェック）
 - [ ] `CONTRIBUTING.md` ／ Issue テンプレ「学校追加」／フォーム導線
-- [ ] フロント2系統（app.py テンプレ / index.html）の統合
 
 ## フェーズ3 — スケール運用（数十〜数百校）
 - [ ] DBファイル分割 or Postgres 移行（`school` で水平分割可能に）

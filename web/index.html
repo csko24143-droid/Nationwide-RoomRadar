@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RoomRadar — 全国の空き教室さがし（静的コア版）</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header><div class="brand"><a href="index.html">Room<b>Radar</b></a></div></header>
+  <main>
+    <p>空き教室をさがす学校を選んでください。<span class="muted">（クライアント計算・静的版）</span></p>
+    <div id="schools"></div>
+    <div class="card muted">
+      自分の学校を追加したいですか？ <code>schools/&lt;slug&gt;/</code> にデータを追加するだけで載せられます
+      （<a href="https://github.com/csko24143-droid/Nationwide-RoomRadar/blob/main/docs/data-import-format.md">データ形式</a>）。
+    </div>
+  </main>
+  <script>
+    const DIST = window.ROOMRADAR_DIST || "/dist";
+    fetch(`${DIST}/index.json`)
+      .then((r) => r.json())
+      .then((schools) => {
+        const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+        document.getElementById("schools").innerHTML = schools
+          .map((s) => {
+            const region = s.region ? `<span class="chip">${esc(s.region)}</span>` : "";
+            const badge = s.status && s.status !== "active" ? `<span class="chip">${esc(s.status)}</span>` : "";
+            return `<div class="card"><a class="school" href="school.html?school=${encodeURIComponent(s.slug)}">${esc(s.name)}</a>${region}${badge}</div>`;
+          })
+          .join("");
+      })
+      .catch(() => {
+        document.getElementById("schools").innerHTML =
+          '<div class="card">学校一覧を読み込めませんでした。<code>python scripts/build.py</code> でビルドしてください。</div>';
+      });
+  </script>
+</body>
+</html>

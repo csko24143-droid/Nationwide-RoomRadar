@@ -264,6 +264,37 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
         ok = store.cancel_report(slug, room=room, day=data.get("day", ""), period=period, cancel_code=code)
         return jsonify({"ok": ok})
 
+    @app.route("/api/<slug>/counts", methods=["GET"])
+    def api_counts(slug: str):
+        """静的クライアント用：指定 曜日×時限 の教室別 予約数／報告数."""
+        school = _require_school(slug)
+        period = validate(school.config, request.args.get("day", ""), request.args.get("period"))
+        if period is None:
+            return jsonify({"ok": False}), 400
+        day = request.args.get("day", "")
+        store.cleanup(school.now())
+        return jsonify({
+            "ok": True,
+            "reserve": store.reservation_counts(slug, day=day, period=period),
+            "report": store.report_counts(slug, day=day, period=period),
+            "threshold": REPORT_THRESHOLD,
+        })
+
+    # --- 静的コアのクライアント（web/）とビルド成果物（dist/）の配信 ----------
+    from flask import send_from_directory
+
+    repo_root = Path(__file__).resolve().parents[1]
+    web_dir, dist_dir = repo_root / "web", repo_root / "dist"
+
+    @app.route("/app/")
+    @app.route("/app/<path:filename>")
+    def app_client(filename: str = "index.html"):
+        return send_from_directory(web_dir, filename)
+
+    @app.route("/dist/<path:filename>")
+    def dist_file(filename: str):
+        return send_from_directory(dist_dir, filename)
+
     return app
 
 
