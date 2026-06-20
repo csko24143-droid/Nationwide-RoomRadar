@@ -40,6 +40,13 @@ python run.py            # → http://localhost:10000
 #   /dashboard                     運用ダッシュボード（全校横断の規模・稼働状況）
 ```
 
+### 環境変数（任意）
+| 変数 | 既定 | 用途 |
+|---|---|---|
+| `PORT` | `10000` | 起動ポート |
+| `DATABASE_URL` | （未設定＝SQLite `live.db`） | 予約・報告の保存先。`postgresql://…` で Postgres（要 `psycopg`） |
+| `ADMIN_TOKEN` | （未設定＝管理UI無効） | `/admin` の簡易アクセストークン |
+
 ## プロジェクト構成
 
 ```

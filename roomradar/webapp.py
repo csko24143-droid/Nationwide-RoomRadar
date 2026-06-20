@@ -13,7 +13,9 @@
 
 from __future__ import annotations
 
+import datetime
 import json
+import os
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -94,7 +96,8 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
 
     schools_dir = Path(schools_dir)
     app = Flask(__name__)
-    store = LiveStore(live_db)
+    # DATABASE_URL があれば（PostgreSQL 等）それを優先。無ければ live_db（SQLite）。
+    store = LiveStore(os.environ.get("DATABASE_URL") or str(live_db))
     _cache: dict[str, LoadedSchool] = {}
     _rate: dict[tuple[str, str], list[float]] = defaultdict(list)
 
@@ -209,7 +212,7 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
             return jsonify({"ok": False, "error": "rate_limited"}), 429
         day = data.get("day")
         store.cleanup(school.now())
-        expires = school.period_end(day, period).isoformat()
+        expires = school.period_end(day, period).astimezone(datetime.timezone.utc).isoformat()
         code, count = store.reserve(
             slug, room=room, building=building, day=day, period=period,
             name=name, purpose=purpose, expires_at=expires,
@@ -250,7 +253,7 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
             return jsonify({"ok": False, "error": "rate_limited"}), 429
         day = data.get("day")
         store.cleanup(school.now())
-        expires = school.period_end(day, period).isoformat()
+        expires = school.period_end(day, period).astimezone(datetime.timezone.utc).isoformat()
         code, count = store.report(slug, room=room, day=day, period=period, expires_at=expires)
         return jsonify({"ok": True, "cancel_code": code, "count": count})
 
