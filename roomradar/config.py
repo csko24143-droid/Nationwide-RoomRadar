@@ -103,9 +103,22 @@ def load_school_config(path: str | Path) -> SchoolConfig:
     """``config.yml`` を読み込んで検証済みの :class:`SchoolConfig` を返す."""
     path = Path(path)
     with path.open(encoding="utf-8") as fh:
-        raw = yaml.safe_load(fh) or {}
+        return parse_school_config(fh.read(), source=str(path))
+
+
+def parse_school_config(text: str, source: str = "<config>") -> SchoolConfig:
+    """YAML テキストから検証済みの :class:`SchoolConfig` を作る（ファイルに書かずに検証）.
+
+    管理UI（``/admin``）で、保存前に内容を検証するために使う。
+    """
+    try:
+        raw = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"{source}: YAML として解釈できません: {exc}") from exc
     if not isinstance(raw, dict):
-        raise ConfigError(f"{path}: トップレベルはマッピングである必要があります")
+        raise ConfigError(f"{source}: トップレベルはマッピングである必要があります")
+
+    path = source
 
     def require(key: str):
         if not raw.get(key):
