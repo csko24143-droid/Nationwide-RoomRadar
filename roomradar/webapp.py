@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -136,7 +137,8 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
                 f"{_esc(r.name)}</a>{region}{badge}</div>"
             )
         body = (
-            "<p>空き教室をさがす学校を選んでください。</p>"
+            '<p>空き教室をさがす学校を選んでください。'
+            '<a href="/dashboard" style="float:right">運用ダッシュボード →</a></p>'
             + "".join(cards)
             + '<div class="card muted">自分の学校を追加したいですか？ '
             "<code>schools/&lt;slug&gt;/</code> にデータを追加するだけで載せられます"
@@ -280,10 +282,75 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
             "threshold": REPORT_THRESHOLD,
         })
 
+    # --- 運用ダッシュボード（学校横断・DESIGN ROADMAP フェーズ3） --------------
+    repo_root = Path(__file__).resolve().parents[1]
+
+    def _stats_doc() -> dict:
+        """静的統計（dist/stats.json）＋ 稼働統計（予約・報告）を合算して返す."""
+        path = repo_root / "dist" / "stats.json"
+        if path.exists():
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        else:  # 未ビルドでもレジストリから最低限を組み立てる
+            refs = load_registry(schools_dir / "index.json")
+            doc = {"totals": {"schools": len(refs), "rooms": 0, "lessons": 0},
+                   "schools": [{"slug": r.slug, "name": r.name, "short": r.short,
+                                "region": r.region, "status": r.status,
+                                "rooms": 0, "lessons": 0, "buildings": 0,
+                                "periods": 0, "days": 0, "terms": 0} for r in refs]}
+        store.cleanup()
+        live = store.active_by_school()
+        for s in doc["schools"]:
+            s["reservations"] = live.get(s["slug"], {}).get("reservations", 0)
+            s["reports"] = live.get(s["slug"], {}).get("reports", 0)
+        t = store.totals()
+        doc["totals"]["reservations"] = t["reservations"]
+        doc["totals"]["reports"] = t["reports"]
+        return doc
+
+    @app.route("/api/stats")
+    def api_stats():
+        return jsonify(_stats_doc())
+
+    @app.route("/dashboard")
+    def dashboard():
+        doc = _stats_doc()
+        t = doc["totals"]
+        cards = "".join(
+            f'<div class="card" style="display:inline-block;min-width:130px;margin-right:8px">'
+            f'<div class="count"><b>{t.get(k, 0):,}</b></div><div class="muted">{label}</div></div>'
+            for k, label in [
+                ("schools", "学校"), ("rooms", "教室"), ("lessons", "コマ"),
+                ("reservations", "予約(稼働中)"), ("reports", "報告(稼働中)"),
+            ]
+        )
+        head = "".join(f"<th>{h}</th>" for h in
+                       ["学校", "地域", "状態", "教室", "コマ", "校舎", "時限", "予約", "報告"])
+        rows = ""
+        for s in doc["schools"]:
+            rows += (
+                "<tr>"
+                f'<td><a href="/s/{_esc(s["slug"])}">{_esc(s["name"])}</a></td>'
+                f'<td>{_esc(s.get("region", ""))}</td><td>{_esc(s.get("status", ""))}</td>'
+                f'<td>{s.get("rooms", 0):,}</td><td>{s.get("lessons", 0):,}</td>'
+                f'<td>{s.get("buildings", 0)}</td><td>{s.get("periods", 0)}</td>'
+                f'<td>{s.get("reservations", 0)}</td><td>{s.get("reports", 0)}</td>'
+                "</tr>"
+            )
+        body = (
+            "<h2 style='margin:6px 0'>運用ダッシュボード</h2>"
+            '<p class="muted">プラットフォーム全体の規模と稼働状況（学校横断）。</p>'
+            f"<div>{cards}</div>"
+            '<table style="width:100%;border-collapse:collapse;margin-top:16px">'
+            f'<thead><tr style="text-align:left;color:#9aa3c4;font-size:13px">{head}</tr></thead>'
+            f"<tbody>{rows}</tbody></table>"
+            '<style>#dash td,#dash th{padding:8px;border-bottom:1px solid #232a44}</style>'
+        )
+        body = f'<div id="dash">{body}</div>'
+        return _render("運用ダッシュボード — RoomRadar", "", body, "#6c8fff")
+
     # --- 静的コアのクライアント（web/）とビルド成果物（dist/）の配信 ----------
     from flask import send_from_directory
 
-    repo_root = Path(__file__).resolve().parents[1]
     web_dir, dist_dir = repo_root / "web", repo_root / "dist"
 
     @app.route("/app/")

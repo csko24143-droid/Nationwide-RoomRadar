@@ -47,6 +47,15 @@ class BuildTest(unittest.TestCase):
         idx = json.loads((self.out / "index.json").read_text(encoding="utf-8"))
         self.assertEqual({s["slug"] for s in idx}, {"nust", "example-tech"})
 
+    def test_stats_written(self):
+        stats = json.loads((self.out / "stats.json").read_text(encoding="utf-8"))
+        self.assertEqual(stats["totals"]["schools"], 2)
+        nust = next(s for s in stats["schools"] if s["slug"] == "nust")
+        self.assertEqual(nust["rooms"], 181)
+        self.assertEqual(nust["buildings"], 3)
+        # 全校合計の教室数は各校の合計と一致
+        self.assertEqual(stats["totals"]["rooms"], sum(s["rooms"] for s in stats["schools"]))
+
     def test_payload_matches_engine_nust(self):
         school = LoadedSchool.load("nust", base_dir=SCHOOLS)
         payload = self._payload("nust")

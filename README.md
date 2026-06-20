@@ -37,6 +37,7 @@ python run.py            # → http://localhost:10000
 #   /s/nust                        日大理工の空き教室検索（サーバ描画）
 #   /app/                          全国トップ（静的・クライアント計算版）
 #   /app/school.html?school=nust   各校検索（ブラウザ側で空き計算・予約/報告のみAPI）
+#   /dashboard                     運用ダッシュボード（全校横断の規模・稼働状況）
 ```
 
 ## プロジェクト構成
@@ -49,7 +50,7 @@ roomradar/            学校非依存のコア（このコードは学校を知�
   data.py             schedule.csv / classrooms.csv のローダ
   school.py           設定＋データを束ねた 1 校分のモデル
   live.py             動的レイヤ：予約・報告（school スコープ・SQLite）
-  webapp.py           Flask アプリ（/ ・/s/<slug>・/api/<slug>/… ・静的配信）
+  webapp.py           Flask アプリ（/ ・/s/<slug>・/api/<slug>/… ・/dashboard ・静的配信）
 web/                  静的コアのクライアント（ブラウザで空き計算）
   availability.js     availability.py / terms.py の JS 版（Python と同一ロジック）
   index.html / school.html / app.js / styles.css
@@ -59,7 +60,7 @@ schools/              テナント（学校）データ。ここを足すだけ�
   example-tech/       マルチテナント実証用サンプル校
 scripts/
   export_nust.py      旧DB→CSV 移行＋旧実装との一致検証（DESIGN §13）
-  build.py            配信用 JSON（dist/）のビルド（DESIGN §4.1 静的コア）
+  build.py            配信用 JSON（dist/）＋ 統計（dist/stats.json）のビルド
 tests/                unittest（terms/availability/config/live/build/JSクロスチェック）
 docs/                 設計書一式
 ```
@@ -81,7 +82,7 @@ docs/                 設計書一式
 | [`docs/data-import-format.md`](docs/data-import-format.md) | 時間割CSV/Excel の仕様とテンプレ |
 | [`docs/examples/`](docs/examples/) | 学校設定・時間割の記入例 |
 
-## いまの達成状況（フェーズ1）
+## いまの達成状況（フェーズ1〜3）
 
 - [x] 設定/レジストリのローダ（`config.yml` / `index.json`）
 - [x] 空き判定エンジンの学校非依存化（校舎別 if 分岐を撤去）
@@ -94,6 +95,7 @@ docs/                 設計書一式
       — JS の計算結果が Python エンジンと全コマ一致することをテストで担保
 - [x] データ検証 `scripts/validate.py` ／ CI 自動化（`.github/workflows/ci.yml`）／
       `CONTRIBUTING.md`・学校追加 Issue テンプレ
-- [ ] CDN 配信・キャッシュバージョニング ／ 非技術者向けフォーム導線（フェーズ2残）
+- [x] **フェーズ3着手**：学校横断の運用ダッシュボード（`/dashboard`・`/api/stats`）
+- [ ] DB分割/Postgres 移行・管理UI（フェーズ3残）／ CDN 配信・フォーム導線（フェーズ2残）
 
 残タスクは [`docs/ROADMAP.md`](docs/ROADMAP.md) を参照。

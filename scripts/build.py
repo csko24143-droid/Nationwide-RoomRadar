@@ -61,6 +61,24 @@ def build_school_payload(school: LoadedSchool) -> dict:
     }
 
 
+def school_stats(school: LoadedSchool, ref) -> dict:
+    """ダッシュボード用の静的統計（1 校分）."""
+    cfg = school.config
+    return {
+        "slug": cfg.slug,
+        "name": cfg.name,
+        "short": ref.short or cfg.short_name,
+        "region": ref.region or cfg.region,
+        "status": ref.status,
+        "rooms": len(school.rooms),
+        "lessons": len(school.lessons),
+        "buildings": len(cfg.buildings),
+        "periods": len(cfg.periods),
+        "days": len(cfg.days),
+        "terms": len(cfg.terms),
+    }
+
+
 def build_all(schools_dir: str | Path = "schools", out_dir: str | Path = "dist") -> list[str]:
     """レジストリ掲載の全校をビルドして dist/ へ書き出し、slug 一覧を返す."""
     schools_dir = Path(schools_dir)
@@ -69,12 +87,14 @@ def build_all(schools_dir: str | Path = "schools", out_dir: str | Path = "dist")
 
     refs = visible_schools(load_registry(schools_dir / "index.json"))
     built: list[str] = []
+    stats: list[dict] = []
     for ref in refs:
         school = LoadedSchool.load(ref.slug, base_dir=schools_dir)
         payload = build_school_payload(school)
         path = out_dir / "schools" / f"{ref.slug}.json"
         path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         built.append(ref.slug)
+        stats.append(school_stats(school, ref))
 
     index = [
         {"slug": r.slug, "name": r.name, "short": r.short, "region": r.region, "status": r.status}
@@ -82,6 +102,19 @@ def build_all(schools_dir: str | Path = "schools", out_dir: str | Path = "dist")
     ]
     (out_dir / "index.json").write_text(
         json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
+
+    # ダッシュボード用の集計（静的統計）。稼働統計（予約・報告）は実行時に合算する。
+    stats_doc = {
+        "totals": {
+            "schools": len(stats),
+            "rooms": sum(s["rooms"] for s in stats),
+            "lessons": sum(s["lessons"] for s in stats),
+        },
+        "schools": stats,
+    }
+    (out_dir / "stats.json").write_text(
+        json.dumps(stats_doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
     return built
 
