@@ -3,3 +3,6 @@ PyYAML>=6.0
 
 # Web アプリ（roomradar/webapp.py, run.py）に必要。コア／テストには不要。
 Flask>=3.0
+
+# PostgreSQL を使う場合のみ（DATABASE_URL=postgresql://…）。既定の SQLite では不要。
+# psycopg[binary]>=3.1

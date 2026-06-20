@@ -13,14 +13,20 @@
 
 from __future__ import annotations
 
+import datetime
 import json
+import os
+import re
 import time
 from collections import defaultdict
 from pathlib import Path
 
-from .config import SchoolConfig, load_registry, visible_schools
+from .config import ConfigError, SchoolConfig, load_registry, parse_school_config, visible_schools
 from .live import LiveStore
 from .school import LoadedSchool
+from .validation import validate_school
+
+_SLUG_RE = re.compile(r"^[a-z0-9-]+$")
 
 DEFAULT_SCHOOLS_DIR = Path("schools")
 REPORT_THRESHOLD = 2  # この件数以上の報告で「使用中の可能性」表示（旧実装踏襲）
@@ -94,7 +100,8 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
 
     schools_dir = Path(schools_dir)
     app = Flask(__name__)
-    store = LiveStore(live_db)
+    # DATABASE_URL があれば（PostgreSQL 等）それを優先。無ければ live_db（SQLite）。
+    store = LiveStore(os.environ.get("DATABASE_URL") or str(live_db))
     _cache: dict[str, LoadedSchool] = {}
     _rate: dict[tuple[str, str], list[float]] = defaultdict(list)
 
@@ -209,7 +216,7 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
             return jsonify({"ok": False, "error": "rate_limited"}), 429
         day = data.get("day")
         store.cleanup(school.now())
-        expires = school.period_end(day, period).isoformat()
+        expires = school.period_end(day, period).astimezone(datetime.timezone.utc).isoformat()
         code, count = store.reserve(
             slug, room=room, building=building, day=day, period=period,
             name=name, purpose=purpose, expires_at=expires,
@@ -250,7 +257,7 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
             return jsonify({"ok": False, "error": "rate_limited"}), 429
         day = data.get("day")
         store.cleanup(school.now())
-        expires = school.period_end(day, period).isoformat()
+        expires = school.period_end(day, period).astimezone(datetime.timezone.utc).isoformat()
         code, count = store.report(slug, room=room, day=day, period=period, expires_at=expires)
         return jsonify({"ok": True, "cancel_code": code, "count": count})
 
@@ -348,6 +355,78 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
         body = f'<div id="dash">{body}</div>'
         return _render("運用ダッシュボード — RoomRadar", "", body, "#6c8fff")
 
+    # --- 管理UI（データ編集・ADMIN_TOKEN で保護・ROADMAP フェーズ3） ----------
+    def _guard_admin() -> str:
+        token = os.environ.get("ADMIN_TOKEN")
+        if not token:
+            abort(404)  # ADMIN_TOKEN 未設定なら機能無効（安全側の既定）
+        given = request.values.get("token") or request.headers.get("X-Admin-Token")
+        if given != token:
+            abort(403)
+        return token
+
+    def _safe_school_dir(slug: str) -> Path:
+        if not _SLUG_RE.match(slug or ""):
+            abort(404)
+        d = schools_dir / slug
+        if d.resolve().parent != schools_dir.resolve() or not (d / "config.yml").exists():
+            abort(404)
+        return d
+
+    @app.route("/admin")
+    def admin_home():
+        token = _guard_admin()
+        refs = load_registry(schools_dir / "index.json")
+        rows = ""
+        for r in refs:
+            errors, warnings = validate_school(r.slug, schools_dir)
+            badge = (
+                "<span style='color:#7ee0a6'>OK</span>"
+                if not errors
+                else f"<span style='color:#ff9a9a'>NG {len(errors)}</span>"
+            )
+            rows += (
+                f"<tr><td><a href='/admin/{_esc(r.slug)}?token={_esc(token)}'>{_esc(r.name)}</a></td>"
+                f"<td>{_esc(r.slug)}</td><td>{badge}</td><td>{len(warnings)}</td></tr>"
+            )
+        body = (
+            "<h2 style='margin:6px 0'>管理コンソール</h2>"
+            "<p class='muted'>学校設定（config.yml）の検証・編集。保存はこのサーバのファイルへ書き込みます"
+            "（永続化するには git にコミットしてください）。</p>"
+            "<table id='dash' style='width:100%;border-collapse:collapse'>"
+            "<thead><tr style='text-align:left;color:#9aa3c4'><th>学校</th><th>slug</th>"
+            "<th>検証</th><th>警告</th></tr></thead>"
+            f"<tbody>{rows}</tbody></table>"
+            "<style>#dash td,#dash th{padding:8px;border-bottom:1px solid #232a44}</style>"
+        )
+        return _render("管理コンソール — RoomRadar", "", body, "#6c8fff")
+
+    @app.route("/admin/<slug>")
+    def admin_school(slug: str):
+        token = _guard_admin()
+        d = _safe_school_dir(slug)
+        content = (d / "config.yml").read_text(encoding="utf-8")
+        return _render(*_admin_edit_view(slug, token, content, schools_dir))
+
+    @app.route("/admin/<slug>/config", methods=["POST"])
+    def admin_save_config(slug: str):
+        token = _guard_admin()
+        d = _safe_school_dir(slug)
+        content = request.form.get("content", "")
+        try:
+            cfg = parse_school_config(content, source=f"{slug}/config.yml")
+        except (ConfigError, KeyError, ValueError, TypeError) as exc:
+            return _render(*_admin_edit_view(slug, token, content, schools_dir,
+                                             error=f"保存しませんでした: {exc}"))
+        if cfg.slug != slug:
+            return _render(*_admin_edit_view(slug, token, content, schools_dir,
+                                             error=f"slug は '{slug}' のままにしてください（'{cfg.slug}' へは変更不可）"))
+        tmp = d / "config.yml.tmp"
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, d / "config.yml")
+        _cache.pop(slug, None)  # 次のアクセスで再読込
+        return _render(*_admin_edit_view(slug, token, content, schools_dir, saved=True))
+
     # --- 静的コアのクライアント（web/）とビルド成果物（dist/）の配信 ----------
     from flask import send_from_directory
 
@@ -376,6 +455,39 @@ def _render(title, subtitle, body, accent, footer="", script="") -> str:
     return _PAGE.format(
         title=_esc(title), subtitle=subtitle, body=body, accent=accent, footer=footer, script=script
     )
+
+
+def _admin_edit_view(slug, token, content, schools_dir, *, error=None, saved=False):
+    """管理UIの config.yml 編集画面（_render に渡す (title, subtitle, body, accent)）."""
+    errors, warnings = validate_school(slug, schools_dir)
+    banner = ""
+    if error:
+        banner = f"<div class='card' style='border-color:#7a3b1a'>⚠ {_esc(error)}</div>"
+    elif saved:
+        banner = "<div class='card' style='border-color:#2e6b4a'>✓ 保存しました（下に検証結果）</div>"
+
+    if errors:
+        val = "<div class='card'><b style='color:#ff9a9a'>検証エラー</b><ul>" + "".join(
+            f"<li>{_esc(e)}</li>" for e in errors[:30]
+        ) + "</ul></div>"
+    else:
+        val = "<div class='card muted'>検証OK（エラーなし）</div>"
+    if warnings:
+        val += "<details class='card'><summary>警告 " + str(len(warnings)) + " 件</summary><ul>" + "".join(
+            f"<li>{_esc(w)}</li>" for w in warnings[:30]
+        ) + "</ul></details>"
+
+    form = (
+        f"<form method='post' action='/admin/{_esc(slug)}/config'>"
+        f"<input type='hidden' name='token' value='{_esc(token)}'>"
+        "<textarea name='content' spellcheck='false' style='width:100%;height:340px;"
+        "font-family:ui-monospace,monospace;font-size:13px;padding:10px;border-radius:9px;"
+        f"border:1px solid #2c3458;background:#0f1320;color:#e8ecf5'>{_esc(content)}</textarea>"
+        "<div style='margin-top:8px'><button type='submit'>検証して保存</button> "
+        f"<a href='/admin?token={_esc(token)}' class='muted' style='margin-left:10px'>← 一覧へ</a></div></form>"
+    )
+    body = f"<h2 style='margin:6px 0'>{_esc(slug)} / config.yml</h2>{banner}{form}{val}"
+    return (f"管理 {slug} — RoomRadar", "", body, "#6c8fff")
 
 
 def _search_form(cfg: SchoolConfig, sel_day: str, sel_period: int, sel_building: str) -> str:

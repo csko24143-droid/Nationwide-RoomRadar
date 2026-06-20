@@ -38,7 +38,15 @@ python run.py            # → http://localhost:10000
 #   /app/                          全国トップ（静的・クライアント計算版）
 #   /app/school.html?school=nust   各校検索（ブラウザ側で空き計算・予約/報告のみAPI）
 #   /dashboard                     運用ダッシュボード（全校横断の規模・稼働状況）
+#   /admin?token=...               管理コンソール（要 ADMIN_TOKEN・config.yml 編集）
 ```
+
+### 環境変数（任意）
+| 変数 | 既定 | 用途 |
+|---|---|---|
+| `PORT` | `10000` | 起動ポート |
+| `DATABASE_URL` | （未設定＝SQLite `live.db`） | 予約・報告の保存先。`postgresql://…` で Postgres（要 `psycopg`） |
+| `ADMIN_TOKEN` | （未設定＝管理UI無効） | `/admin` の簡易アクセストークン |
 
 ## プロジェクト構成
 
@@ -49,8 +57,9 @@ roomradar/            学校非依存のコア（このコードは学校を知�
   availability.py     空き判定エンジン（使用中集合の差集合・純粋関数）
   data.py             schedule.csv / classrooms.csv のローダ
   school.py           設定＋データを束ねた 1 校分のモデル
-  live.py             動的レイヤ：予約・報告（school スコープ・SQLite）
-  webapp.py           Flask アプリ（/ ・/s/<slug>・/api/<slug>/… ・/dashboard ・静的配信）
+  validation.py       学校データの検証（CLI と管理UIで共用）
+  live.py             動的レイヤ：予約・報告（school スコープ・SQLite/Postgres）
+  webapp.py           Flask アプリ（/ ・/s/<slug>・/api/<slug>/… ・/dashboard ・/admin ・静的配信）
 web/                  静的コアのクライアント（ブラウザで空き計算）
   availability.js     availability.py / terms.py の JS 版（Python と同一ロジック）
   index.html / school.html / app.js / styles.css
@@ -95,7 +104,8 @@ docs/                 設計書一式
       — JS の計算結果が Python エンジンと全コマ一致することをテストで担保
 - [x] データ検証 `scripts/validate.py` ／ CI 自動化（`.github/workflows/ci.yml`）／
       `CONTRIBUTING.md`・学校追加 Issue テンプレ
-- [x] **フェーズ3着手**：学校横断の運用ダッシュボード（`/dashboard`・`/api/stats`）
-- [ ] DB分割/Postgres 移行・管理UI（フェーズ3残）／ CDN 配信・フォーム導線（フェーズ2残）
+- [x] **フェーズ3**：学校横断の運用ダッシュボード（`/dashboard`・`/api/stats`）
+- [x] **フェーズ3**：ストレージ抽象化（SQLite/Postgres・`DATABASE_URL`）＋管理UI（`/admin`）
+- [ ] CDN 配信・キャッシュバージョニング ／ 非技術者向けフォーム導線（フェーズ2残）
 
 残タスクは [`docs/ROADMAP.md`](docs/ROADMAP.md) を参照。
