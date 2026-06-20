@@ -188,3 +188,25 @@ class LiveStore:
                 (school, day, period),
             ).fetchall()
         return {r["room"]: r["c"] for r in rows}
+
+    # --- 横断集計（運用ダッシュボード用） ----------------------------------
+    def totals(self) -> dict[str, int]:
+        """全校合計の予約数・報告数（プラットフォーム全体）."""
+        with self._connect() as conn:
+            res = conn.execute("SELECT COUNT(*) FROM reservations").fetchone()[0]
+            rep = conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0]
+        return {"reservations": res, "reports": rep}
+
+    def active_by_school(self) -> dict[str, dict[str, int]]:
+        """学校別の予約数・報告数 {slug: {reservations, reports}}（1 回の集計で取得）."""
+        out: dict[str, dict[str, int]] = {}
+
+        def bucket(slug: str) -> dict[str, int]:
+            return out.setdefault(slug, {"reservations": 0, "reports": 0})
+
+        with self._connect() as conn:
+            for row in conn.execute("SELECT school, COUNT(*) AS c FROM reservations GROUP BY school"):
+                bucket(row["school"])["reservations"] = row["c"]
+            for row in conn.execute("SELECT school, COUNT(*) AS c FROM reports GROUP BY school"):
+                bucket(row["school"])["reports"] = row["c"]
+        return out

@@ -79,6 +79,16 @@ class LiveStoreTest(unittest.TestCase):
         self.assertEqual(len(code), 6)
         self.assertTrue(code.isalnum())
 
+    def test_cross_school_aggregates(self):
+        self._reserve("nust", room="101")
+        self._reserve("nust", room="102")
+        self._reserve("example-tech", room="201")
+        self.store.report("nust", room="101", day="月", period=1, expires_at=FUTURE)
+        self.assertEqual(self.store.totals(), {"reservations": 3, "reports": 1})
+        by = self.store.active_by_school()
+        self.assertEqual(by["nust"], {"reservations": 2, "reports": 1})
+        self.assertEqual(by["example-tech"], {"reservations": 1, "reports": 0})
+
 
 if __name__ == "__main__":
     unittest.main()
