@@ -135,21 +135,29 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
     @app.route("/")
     def home():
         refs = visible_schools(load_registry(schools_dir / "index.json"))
-        cards = []
+        by_region: dict[str, list] = {}
         for r in refs:
-            badge = "" if r.status == "active" else f'<span class="chip">{_esc(r.status)}</span>'
-            region = f'<span class="chip">{_esc(r.region)}</span>' if r.region else ""
-            cards.append(
-                f'<div class="card"><a class="school" href="/s/{_esc(r.slug)}">'
-                f"{_esc(r.name)}</a>{region}{badge}</div>"
+            by_region.setdefault(r.region or "その他", []).append(r)
+        sections = []
+        for region in sorted(by_region):
+            cards = "".join(
+                f'<div class="card"><a class="school" href="/s/{_esc(r.slug)}">{_esc(r.name)}</a>'
+                + ("" if r.status == "active" else f'<span class="chip">{_esc(r.status)}</span>')
+                + "</div>"
+                for r in by_region[region]
+            )
+            sections.append(
+                f'<h3 style="margin:18px 0 6px;color:#9aa3c4">{_esc(region)} '
+                f'<span class="muted">{len(by_region[region])}</span></h3>{cards}'
             )
         body = (
-            '<p>空き教室をさがす学校を選んでください。'
+            "<p>空き教室をさがす学校を選んでください（地域別）。"
             '<a href="/dashboard" style="float:right">運用ダッシュボード →</a></p>'
-            + "".join(cards)
+            + "".join(sections)
             + '<div class="card muted">自分の学校を追加したいですか？ '
-            "<code>schools/&lt;slug&gt;/</code> にデータを追加するだけで載せられます"
-            "（<a href=\"https://github.com/csko24143-droid/Nationwide-RoomRadar/blob/main/docs/data-import-format.md\">データ形式</a>）。</div>"
+            '<a href="/app/add-school.html">かんたん追加フォーム</a> から、または '
+            "<code>schools/&lt;slug&gt;/</code> にデータを追加（"
+            '<a href="https://github.com/csko24143-droid/Nationwide-RoomRadar/blob/main/docs/data-import-format.md">データ形式</a>）。</div>'
         )
         return _render("RoomRadar — 全国の空き教室さがし", "", body, "#6c8fff")
 
@@ -181,7 +189,14 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
         body += f'<div class="count"><b>{len(free)}</b> 室 空き（{_esc(sel_day)} {sel_period}限）</div>'
         body += _rooms_by_building(cfg, free, reserve_counts, report_counts)
         subtitle = f'<span class="chip">{_esc(cfg.short_name)}</span>'
-        footer = _esc(cfg.disclaimer) if cfg.disclaimer else ""
+        meta = []
+        if cfg.data_updated:
+            meta.append(f"データ最終更新: {_esc(cfg.data_updated)}")
+        if cfg.source:
+            meta.append(f"出典: {_esc(cfg.source)}")
+        footer = " ／ ".join(meta)
+        if cfg.disclaimer:
+            footer += ("<br>" if footer else "") + _esc(cfg.disclaimer)
         script = _ACTION_JS.format(slug=_esc(slug), day=_esc(sel_day), period=sel_period,
                                    threshold=REPORT_THRESHOLD)
         return _render(f"{cfg.short_name} — RoomRadar", subtitle, body, cfg.accent, footer, script)
@@ -331,7 +346,7 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
             ]
         )
         head = "".join(f"<th>{h}</th>" for h in
-                       ["学校", "地域", "状態", "教室", "コマ", "校舎", "時限", "予約", "報告"])
+                       ["学校", "地域", "状態", "教室", "コマ", "校舎", "予約", "報告", "鮮度"])
         rows = ""
         for s in doc["schools"]:
             rows += (
@@ -339,8 +354,9 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
                 f'<td><a href="/s/{_esc(s["slug"])}">{_esc(s["name"])}</a></td>'
                 f'<td>{_esc(s.get("region", ""))}</td><td>{_esc(s.get("status", ""))}</td>'
                 f'<td>{s.get("rooms", 0):,}</td><td>{s.get("lessons", 0):,}</td>'
-                f'<td>{s.get("buildings", 0)}</td><td>{s.get("periods", 0)}</td>'
+                f'<td>{s.get("buildings", 0)}</td>'
                 f'<td>{s.get("reservations", 0)}</td><td>{s.get("reports", 0)}</td>'
+                f'<td>{_freshness_cell(s.get("data_updated", ""))}</td>'
                 "</tr>"
             )
         body = (
@@ -439,7 +455,10 @@ def create_app(schools_dir: str | Path = DEFAULT_SCHOOLS_DIR, live_db: str | Pat
 
     @app.route("/dist/<path:filename>")
     def dist_file(filename: str):
-        return send_from_directory(dist_dir, filename)
+        # schools/<slug>.json は ?v=<hash> でキャッシュバスティングするため長期キャッシュ可。
+        # index.json / stats.json は同名で内容が変わり得るので短め。
+        long_lived = filename.startswith("schools/") and filename.endswith(".json")
+        return send_from_directory(dist_dir, filename, max_age=86400 if long_lived else 300)
 
     return app
 
@@ -449,6 +468,20 @@ def _as_int(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _freshness_cell(date_str: str, stale_days: int = 180) -> str:
+    """データ更新日のセル。古い（既定 180 日超）なら警告バッジ."""
+    if not date_str:
+        return "<span class='muted'>—</span>"
+    try:
+        d = datetime.date.fromisoformat(date_str)
+    except ValueError:
+        return _esc(date_str)
+    age = (datetime.date.today() - d).days
+    if age > stale_days:
+        return f"<span class='badge warn'>{_esc(date_str)}（{age}日前・要更新）</span>"
+    return _esc(date_str)
 
 
 def _render(title, subtitle, body, accent, footer="", script="") -> str:

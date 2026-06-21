@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from collections import defaultdict
@@ -48,6 +49,8 @@ def build_school_payload(school: LoadedSchool) -> dict:
         "accent": cfg.accent,
         "timezone": cfg.timezone,
         "disclaimer": cfg.disclaimer,
+        "data_updated": cfg.data_updated,
+        "source": cfg.source,
         "days": list(cfg.days),
         "periods": [{"period": p.number, "start": p.start, "end": p.end} for p in cfg.periods],
         "terms": [
@@ -76,6 +79,8 @@ def school_stats(school: LoadedSchool, ref) -> dict:
         "periods": len(cfg.periods),
         "days": len(cfg.days),
         "terms": len(cfg.terms),
+        "data_updated": cfg.data_updated,
+        "source": cfg.source,
     }
 
 
@@ -88,18 +93,25 @@ def build_all(schools_dir: str | Path = "schools", out_dir: str | Path = "dist")
     refs = visible_schools(load_registry(schools_dir / "index.json"))
     built: list[str] = []
     stats: list[dict] = []
+    index: list[dict] = []
     for ref in refs:
         school = LoadedSchool.load(ref.slug, base_dir=schools_dir)
+        cfg = school.config
         payload = build_school_payload(school)
-        path = out_dir / "schools" / f"{ref.slug}.json"
-        path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        (out_dir / "schools" / f"{ref.slug}.json").write_text(body, encoding="utf-8")
         built.append(ref.slug)
         stats.append(school_stats(school, ref))
+        index.append({
+            "slug": cfg.slug,
+            "name": cfg.name,
+            "short": ref.short or cfg.short_name,
+            "region": ref.region or cfg.region,
+            "status": ref.status,
+            "data_updated": cfg.data_updated,
+            "v": hashlib.sha1(body.encode("utf-8")).hexdigest()[:8],  # キャッシュバスティング用
+        })
 
-    index = [
-        {"slug": r.slug, "name": r.name, "short": r.short, "region": r.region, "status": r.status}
-        for r in refs
-    ]
     (out_dir / "index.json").write_text(
         json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )

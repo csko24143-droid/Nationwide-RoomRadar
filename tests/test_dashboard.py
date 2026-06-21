@@ -51,6 +51,25 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("運用ダッシュボード", html)
         self.assertIn("日本大学 理工学部", html)
         self.assertIn("サンプル工科大学", html)
+        self.assertIn("鮮度", html)  # フェーズ4: データ鮮度列
+
+    def test_home_groups_by_region(self):
+        home = self.c.get("/").get_data(as_text=True)
+        self.assertIn("東京・千葉", home)
+        self.assertIn("add-school.html", home)  # フォーム導線
+
+    def test_school_page_shows_freshness(self):
+        page = self.c.get("/s/nust").get_data(as_text=True)
+        self.assertIn("データ最終更新: 2026-04-01", page)
+
+    def test_dist_cache_headers(self):
+        self.assertIn("max-age=86400", self.c.get("/dist/schools/nust.json").headers.get("Cache-Control", ""))
+        self.assertIn("max-age=300", self.c.get("/dist/index.json").headers.get("Cache-Control", ""))
+
+    def test_add_school_form_served(self):
+        r = self.c.get("/app/add-school.html")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("追加リクエスト", r.get_data(as_text=True))
 
 
 if __name__ == "__main__":

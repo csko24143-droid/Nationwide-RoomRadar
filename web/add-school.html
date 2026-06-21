@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>学校を追加する — RoomRadar</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .field { margin: 12px 0; }
+    .field label { font-size: 13px; }
+    .field input, .field textarea { width: 100%; padding: 9px 11px; border-radius: 9px;
+      border: 1px solid #2c3458; background: #0f1320; color: #e8ecf5; font-size: 15px; }
+    .field textarea { min-height: 70px; font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <header><div class="brand"><a href="index.html">Room<b>Radar</b></a> <span class="chip">学校を追加</span></div></header>
+  <main>
+    <h2 style="margin:6px 0">学校の追加リクエスト</h2>
+    <p class="muted">わかる範囲で入力してください。送信ボタンで、内容を埋めた GitHub の
+      Issue 作成ページが開きます（メンテナがデータ化して取り込みます）。GitHub アカウントが必要です。</p>
+
+    <form id="f">
+      <div class="field"><label>学校・学部の正式名称 *</label><input name="name" required placeholder="例）日本大学 理工学部"></div>
+      <div class="field"><label>略称</label><input name="short" placeholder="例）日大理工"></div>
+      <div class="field"><label>地域（都道府県など）</label><input name="region" placeholder="例）東京・千葉"></div>
+      <div class="field"><label>校舎の一覧（1行に1つ）*</label><textarea name="buildings" required placeholder="タワースコラ&#10;駿河台校舎&#10;船橋校舎"></textarea></div>
+      <div class="field"><label>時限と時刻 *</label><textarea name="periods" required placeholder="1限 09:00-10:40&#10;2限 10:50-12:30"></textarea></div>
+      <div class="field"><label>開講曜日</label><input name="days" placeholder="例）月 火 水 木 金 土"></div>
+      <div class="field"><label>学期（名称と期間）</label><textarea name="terms" placeholder="前期 4/1-9/20&#10;後期 9/21-3/31&#10;通年"></textarea></div>
+      <div class="field"><label>時間割データの入手元・形式 *</label><textarea name="source" required placeholder="例）学務システムからエクスポートした Excel を添付します"></textarea></div>
+      <div style="margin-top:10px"><button type="submit">GitHub で追加リクエストを作成 →</button>
+        <a href="index.html" class="muted" style="margin-left:10px">← 戻る</a></div>
+    </form>
+    <p class="muted" style="margin-top:14px">GitHub が使える人は
+      <a href="https://github.com/csko24143-droid/Nationwide-RoomRadar/blob/main/CONTRIBUTING.md">CONTRIBUTING</a>
+      の手順で直接 Pull Request も歓迎です。</p>
+  </main>
+  <script>
+    const REPO = "csko24143-droid/Nationwide-RoomRadar";
+    document.getElementById("f").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const params = new URLSearchParams({ template: "add-school.yml", title: "[学校追加] " + (fd.get("name") || "") });
+      for (const key of ["name", "short", "region", "buildings", "periods", "days", "terms", "source"]) {
+        const v = (fd.get(key) || "").trim();
+        if (v) params.set(key, v);
+      }
+      window.open(`https://github.com/${REPO}/issues/new?` + params.toString(), "_blank", "noopener");
+    });
+  </script>
+</body>
+</html>

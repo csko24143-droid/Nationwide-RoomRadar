@@ -28,6 +28,9 @@ class SchoolConfigTest(unittest.TestCase):
         self.assertIn("土", cfg.days)
         # period キーが正しく読めている（YAML の no→false 問題の回帰防止）
         self.assertEqual(cfg.period_numbers, [1, 2, 3, 4, 5, 6])
+        # データ鮮度メタ（フェーズ4）
+        self.assertEqual(cfg.data_updated, "2026-04-01")
+        self.assertTrue(cfg.source)
 
     def test_missing_required_field_raises(self):
         with tempfile.TemporaryDirectory() as d:

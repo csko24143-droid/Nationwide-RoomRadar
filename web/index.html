@@ -12,7 +12,8 @@
     <p>空き教室をさがす学校を選んでください。<span class="muted">（クライアント計算・静的版）</span></p>
     <div id="schools"></div>
     <div class="card muted">
-      自分の学校を追加したいですか？ <code>schools/&lt;slug&gt;/</code> にデータを追加するだけで載せられます
+      自分の学校を追加したいですか？ <a href="add-school.html">かんたん追加フォーム</a> から、または
+      <code>schools/&lt;slug&gt;/</code> にデータを追加
       （<a href="https://github.com/csko24143-droid/Nationwide-RoomRadar/blob/main/docs/data-import-format.md">データ形式</a>）。
     </div>
   </main>
@@ -23,11 +24,21 @@
       .then((schools) => {
         const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
           ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-        document.getElementById("schools").innerHTML = schools
-          .map((s) => {
-            const region = s.region ? `<span class="chip">${esc(s.region)}</span>` : "";
-            const badge = s.status && s.status !== "active" ? `<span class="chip">${esc(s.status)}</span>` : "";
-            return `<div class="card"><a class="school" href="school.html?school=${encodeURIComponent(s.slug)}">${esc(s.name)}</a>${region}${badge}</div>`;
+        const byRegion = {};
+        schools.forEach((s) => {
+          const k = s.region || "その他";
+          (byRegion[k] = byRegion[k] || []).push(s);
+        });
+        document.getElementById("schools").innerHTML = Object.keys(byRegion)
+          .sort()
+          .map((region) => {
+            const cards = byRegion[region]
+              .map((s) => {
+                const badge = s.status && s.status !== "active" ? `<span class="chip">${esc(s.status)}</span>` : "";
+                return `<div class="card"><a class="school" href="school.html?school=${encodeURIComponent(s.slug)}">${esc(s.name)}</a>${badge}</div>`;
+              })
+              .join("");
+            return `<h3 style="margin:18px 0 6px;color:#9aa3c4">${esc(region)} <span class="muted">${byRegion[region].length}</span></h3>${cards}`;
           })
           .join("");
       })

@@ -67,6 +67,8 @@ class SchoolConfig:
     buildings: tuple[Building, ...] = ()
     ga4: str = ""
     disclaimer: str = ""
+    data_updated: str = ""  # 時間割データの最終更新日（YYYY-MM-DD）。鮮度表示に使う
+    source: str = ""  # 時間割データの出典（任意）
 
     # --- 便利アクセサ ------------------------------------------------------
     @property
@@ -166,6 +168,8 @@ def parse_school_config(text: str, source: str = "<config>") -> SchoolConfig:
         buildings=buildings,
         ga4=str(analytics.get("ga4", "")),
         disclaimer=str(raw.get("disclaimer", "")).strip(),
+        data_updated=str(raw.get("data_updated", "")).strip(),
+        source=str(raw.get("source", "")).strip(),
     )
     _validate(cfg, path)
     return cfg
