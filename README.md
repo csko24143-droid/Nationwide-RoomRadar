@@ -89,6 +89,9 @@ docs/                 設計書一式
 | [`docs/DESIGN.md`](docs/DESIGN.md) | **設計書（本体）**。現状分析・アーキテクチャ・データモデル・移行計画 |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | フェーズ別の実装チェックリスト |
 | [`docs/data-import-format.md`](docs/data-import-format.md) | 時間割CSV/Excel の仕様とテンプレ |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | 本番デプロイ手順（Render / Procfile / GitHub Pages） |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | 運用ガイド（各校メンテナ制度・更新サイクル・鮮度管理） |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 学校を追加する手順（PR / Issue 依頼） |
 | [`docs/examples/`](docs/examples/) | 学校設定・時間割の記入例 |
 
 ## いまの達成状況（フェーズ1〜3）
@@ -106,6 +109,9 @@ docs/                 設計書一式
       `CONTRIBUTING.md`・学校追加 Issue テンプレ
 - [x] **フェーズ3**：学校横断の運用ダッシュボード（`/dashboard`・`/api/stats`）
 - [x] **フェーズ3**：ストレージ抽象化（SQLite/Postgres・`DATABASE_URL`）＋管理UI（`/admin`）
-- [ ] CDN 配信・キャッシュバージョニング ／ 非技術者向けフォーム導線（フェーズ2残）
+- [x] **フェーズ2残**：キャッシュバージョニング（`?v`）＋配信フォーム導線（`add-school`）
+- [x] **フェーズ4**：地域ディレクトリ・データ鮮度（鮮度列/要更新）・運用ドキュメント
+- [x] **本番デプロイ構成**：`Procfile`・`render.yaml`・`gunicorn`（[DEPLOY](docs/DEPLOY.md)）
+- [ ] SNS 自動投稿の学校別テンプレ化（任意機能・将来）
 
 残タスクは [`docs/ROADMAP.md`](docs/ROADMAP.md) を参照。

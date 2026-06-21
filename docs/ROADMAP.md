@@ -33,8 +33,8 @@
 - [x] `scripts/validate.py`（フォーマット検証・取り込み時の自動チェック）
 - [x] CI で検証自動化（`.github/workflows/ci.yml`：validate→build→test、PR時に自動実行）
 - [x] `CONTRIBUTING.md` ／ Issue テンプレ「学校追加」（`.github/ISSUE_TEMPLATE/add-school.yml`）
-- [ ] CDN/静的ホスティング配信＋キャッシュ・バージョニング（ファイル名ハッシュ）
-- [ ] 非技術者向けフォーム導線（Google フォーム等）
+- [x] キャッシュバージョニング（`?v=<内容ハッシュ>`＋`/dist` の Cache-Control）／ CDN・静的配信手順（`docs/DEPLOY.md`）
+- [x] 非技術者向けフォーム導線（`web/add-school.html` → GitHub Issue 自動生成）
 
 ## フェーズ3 — スケール運用（数十〜数百校）
 - [x] 解析ダッシュボードの学校横断対応（`/dashboard`・`/api/stats`・`dist/stats.json`）
@@ -43,10 +43,17 @@
 - [ ] 解析の時系列保存（現状は稼働中スナップショット）／本番 DB 運用（マイグレーション等）
 
 ## フェーズ4 — 全国グロース
-- [ ] 都道府県/地域ディレクトリ
-- [ ] データ鮮度管理（学期改訂検知・再ビルド運用）
-- [ ] 各校メンテナ制度・運営ドキュメント
-- [ ] SNS自動化の学校別テンプレ化（任意機能として分離）
+- [x] 都道府県/地域ディレクトリ（トップを地域別にグルーピング・`/`・`/app/`）
+- [x] データ鮮度管理（`data_updated`／学校ページ表示・ダッシュボード鮮度列・要更新バッジ・運用サイクル）
+- [x] 各校メンテナ制度・運営ドキュメント（`docs/OPERATIONS.md`）
+- [ ] SNS自動化の学校別テンプレ化（任意機能として分離・将来）
+
+---
+
+## デプロイ／本番運用
+- [x] 本番起動構成（`Procfile`・`render.yaml`・`gunicorn run:app`・`docs/DEPLOY.md`）
+- [x] 環境変数（`DATABASE_URL`／`ADMIN_TOKEN`／`PORT`）
+- [ ] 実 Postgres での疎通確認（要 DB インスタンス）
 
 ---
 

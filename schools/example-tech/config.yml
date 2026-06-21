@@ -6,6 +6,8 @@ name: サンプル工科大学
 short_name: サンプル工科
 region: サンプル県
 timezone: Asia/Tokyo
+data_updated: "2026-04-01"
+source: サンプルデータ
 
 theme:
   accent: "#4dd9a0"

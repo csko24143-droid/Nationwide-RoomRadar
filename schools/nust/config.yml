@@ -6,6 +6,8 @@ name: 日本大学 理工学部
 short_name: 日大理工
 region: 東京・千葉
 timezone: Asia/Tokyo
+data_updated: "2026-04-01"        # 時間割データの最終更新日（鮮度表示に使用）
+source: 大学公式の時間割（教務）   # 出典（任意）
 
 theme:
   accent: "#6c8fff"

@@ -24,7 +24,14 @@
     return;
   }
 
-  fetch(`${DIST}/schools/${encodeURIComponent(slug)}.json`)
+  // まず index.json でバージョン（v）を引き、?v=… を付けてキャッシュバスティング
+  fetch(`${DIST}/index.json`)
+    .then((r) => r.json())
+    .then((index) => {
+      const entry = (index || []).find((s) => s.slug === slug) || {};
+      const v = entry.v ? `?v=${entry.v}` : "";
+      return fetch(`${DIST}/schools/${encodeURIComponent(slug)}.json${v}`);
+    })
     .then((r) => {
       if (!r.ok) throw new Error("not found");
       return r.json();
@@ -36,7 +43,12 @@
       const chip = $("school-chip");
       chip.textContent = d.short_name;
       chip.hidden = false;
-      if (d.disclaimer) $("footer").textContent = d.disclaimer;
+      const meta = [];
+      if (d.data_updated) meta.push("データ最終更新: " + d.data_updated);
+      if (d.source) meta.push("出典: " + d.source);
+      let footer = meta.join(" ／ ");
+      if (d.disclaimer) footer += (footer ? "  " : "") + d.disclaimer;
+      $("footer").textContent = footer;
 
       const cur = RoomRadar.currentDayPeriod(d);
       sel.day = data.days.includes(params.get("day")) ? params.get("day") : cur.day;

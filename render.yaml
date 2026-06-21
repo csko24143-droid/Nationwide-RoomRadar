@@ -1,0 +1,25 @@
+# Render（https://render.com）用ブループリント。リポジトリを接続すると自動でこの構成を読む。
+# 詳細は docs/DEPLOY.md。
+services:
+  - type: web
+    name: roomradar
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python scripts/build.py"
+    startCommand: "gunicorn run:app --bind 0.0.0.0:$PORT --workers 2"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: ADMIN_TOKEN          # 管理UI（/admin）の簡易トークン。自動生成。
+        generateValue: true
+      # 予約・報告を永続化したい場合は Postgres を作成し DATABASE_URL を設定（要 psycopg）。
+      # 未設定なら SQLite（無料プランの一時ディスク上＝再デプロイで揮発）。
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: roomradar-db
+      #     property: connectionString
+
+# Postgres を使う場合は以下を有効化（startCommand 側で psycopg も必要）:
+# databases:
+#   - name: roomradar-db
+#     plan: free

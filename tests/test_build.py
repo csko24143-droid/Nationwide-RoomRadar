@@ -47,6 +47,14 @@ class BuildTest(unittest.TestCase):
         idx = json.loads((self.out / "index.json").read_text(encoding="utf-8"))
         self.assertEqual({s["slug"] for s in idx}, {"nust", "example-tech"})
 
+    def test_index_has_version_and_freshness(self):
+        idx = json.loads((self.out / "index.json").read_text(encoding="utf-8"))
+        for e in idx:
+            self.assertTrue(e["v"])  # キャッシュバスティング用ハッシュ
+            self.assertIn("data_updated", e)
+        nust = next(e for e in idx if e["slug"] == "nust")
+        self.assertEqual(nust["data_updated"], "2026-04-01")
+
     def test_stats_written(self):
         stats = json.loads((self.out / "stats.json").read_text(encoding="utf-8"))
         self.assertEqual(stats["totals"]["schools"], 2)
