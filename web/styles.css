@@ -25,6 +25,8 @@ button.ghost { background:#232a44; color:#e8ecf5; }
 .bgroup h3 { font-size:14px; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
 .dot { width:11px; height:11px; border-radius:50%; display:inline-block; }
 .rooms { display:flex; flex-wrap:wrap; gap:8px; }
+.room-chip { background:#1d2440; border:1px solid #2c3458; border-radius:9px;
+  padding:8px 12px; font-weight:600; }
 details.room { background:#1d2440; border:1px solid #2c3458; border-radius:9px; min-width:96px; }
 details.room[open] { min-width:230px; }
 details.room.reported { opacity:.55; }

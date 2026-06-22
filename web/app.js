@@ -8,7 +8,9 @@
 (function () {
   "use strict";
   const DIST = window.ROOMRADAR_DIST || "/dist";
-  const API = window.ROOMRADAR_API || "/api";
+  // API が空文字（静的配信・バックエンド無し）なら「検索のみ」。未定義はサーバ既定 /api。
+  const API = typeof window.ROOMRADAR_API === "string" ? window.ROOMRADAR_API : "/api";
+  const HAS_BACKEND = API !== "";
   const params = new URLSearchParams(location.search);
   const slug = params.get("school");
 
@@ -103,6 +105,10 @@
     const free = RoomRadar.freeRooms(data, { day: sel.day, period: sel.period, building });
     $("count").innerHTML = `<b>${free.length}</b> 室 空き（${esc(sel.day)} ${sel.period}限）`;
 
+    if (!HAS_BACKEND) {
+      renderRooms(free, { reserve: {}, report: {}, threshold: 2 });
+      return;
+    }
     fetch(`${API}/${encodeURIComponent(slug)}/counts?day=${encodeURIComponent(sel.day)}&period=${sel.period}`)
       .then((r) => r.json())
       .then((c) => renderRooms(free, c.ok ? c : { reserve: {}, report: {}, threshold: 2 }))
@@ -130,6 +136,12 @@
     );
   }
 
+  function chipFor(r, counts, threshold) {
+    // バックエンドが無い静的配信では、操作なしのプレーンなチップで表示。
+    if (!HAS_BACKEND) return `<span class="room-chip">${esc(r.room)}</span>`;
+    return panel(r.room, r.building, counts.reserve[r.room] || 0, counts.report[r.room] || 0, threshold);
+  }
+
   function renderRooms(free, counts) {
     const threshold = counts.threshold || 2;
     if (!free.length) {
@@ -141,22 +153,18 @@
     for (const b of data.buildings) {
       const rooms = free.filter((r) => r.building === b.name);
       if (!rooms.length) continue;
-      const chips = rooms
-        .map((r) => panel(r.room, r.building, counts.reserve[r.room] || 0, counts.report[r.room] || 0, threshold))
-        .join("");
+      const chips = rooms.map((r) => chipFor(r, counts, threshold)).join("");
       groups.push(
         `<div class="bgroup"><h3><span class="dot" style="background:${b.color}"></span>${esc(b.name)} <span class="muted">${rooms.length}</span></h3><div class="rooms">${chips}</div></div>`
       );
     }
     const extra = free.filter((r) => !known.has(r.building));
     if (extra.length) {
-      const chips = extra
-        .map((r) => panel(r.room, r.building, counts.reserve[r.room] || 0, counts.report[r.room] || 0, threshold))
-        .join("");
+      const chips = extra.map((r) => chipFor(r, counts, threshold)).join("");
       groups.push(`<div class="bgroup"><h3>その他</h3><div class="rooms">${chips}</div></div>`);
     }
     $("results").innerHTML = groups.join("");
-    document.querySelectorAll("details.room").forEach(syncCancelButtons);
+    if (HAS_BACKEND) document.querySelectorAll("details.room").forEach(syncCancelButtons);
   }
 
   function key(kind, room) {
@@ -182,6 +190,7 @@
   }
 
   document.addEventListener("click", async (e) => {
+    if (!HAS_BACKEND) return; // 静的配信では予約・報告は無効
     const btn = e.target.closest("button");
     if (!btn) return;
     const p = btn.closest("details.room");
