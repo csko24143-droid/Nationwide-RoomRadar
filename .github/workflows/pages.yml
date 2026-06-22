@@ -1,0 +1,68 @@
+name: Deploy static site to GitHub Pages
+
+# 静的ランディング＋空き検索（クライアント計算）を GitHub Pages（無料）へ公開する。
+# 予約・報告・ダッシュボード・管理UI はバックエンドが必要なため、Pages には含めない
+# （フル機能は docs/DEPLOY.md の Flask デプロイを参照）。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "schools/**"
+      - "scripts/build.py"
+      - "roomradar/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build distribution JSON (dist/)
+        run: python scripts/build.py
+
+      - name: Assemble static site (_site/)
+        run: |
+          rm -rf _site && mkdir -p _site
+          cp -r web/* _site/
+          cp -r dist _site/dist
+          # 静的配信用の設定で上書き：dist は相対パス、API 無し（検索のみ）
+          printf 'window.ROOMRADAR_DIST="dist";window.ROOMRADAR_API="";\n' > _site/config.js
+          # ルートに来た人を静的トップへ（index.html がルート）。404 はトップへフォールバック
+          cp _site/index.html _site/404.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
